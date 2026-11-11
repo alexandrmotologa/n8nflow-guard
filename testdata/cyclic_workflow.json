@@ -1,0 +1,38 @@
+{
+  "name": "Runaway Loop Workflow",
+  "nodes": [
+    {
+      "id": "node-sched",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [100, 200]
+    },
+    {
+      "id": "node-step-a",
+      "name": "Step A",
+      "type": "n8n-nodes-base.set",
+      "position": [300, 200]
+    },
+    {
+      "id": "node-step-b",
+      "name": "Step B",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 200],
+      "parameters": {
+        "url": "https://api.example.com/items"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{"node": "Step A", "type": "main", "index": 0}]]
+    },
+    "Step A": {
+      "main": [[{"node": "Step B", "type": "main", "index": 0}]]
+    },
+    "Step B": {
+      "main": [[{"node": "Step A", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {}
+}

@@ -1,0 +1,17 @@
+- id: n8nflow-guard-lint
+  name: n8nflow-guard lint
+  description: Fast static analysis and security linter for n8n workflow JSON files
+  entry: n8nflow-guard lint
+  language: golang
+  types: [file]
+  files: \.json$
+  additional_dependencies: ['github.com/alexandrmotologa/n8nflow-guard/cmd/n8nflow-guard@latest']
+
+- id: n8nflow-guard-fix
+  name: n8nflow-guard fix
+  description: Automatically sanitize hardcoded secrets and strip pinned test data
+  entry: n8nflow-guard fix --in-place
+  language: golang
+  types: [file]
+  files: \.json$
+  additional_dependencies: ['github.com/alexandrmotologa/n8nflow-guard/cmd/n8nflow-guard@latest']

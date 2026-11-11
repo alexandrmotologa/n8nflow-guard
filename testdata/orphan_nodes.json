@@ -1,0 +1,29 @@
+{
+  "name": "Canvas With Dead Nodes",
+  "nodes": [
+    {
+      "id": "node-active-1",
+      "name": "Poll Trigger",
+      "type": "n8n-nodes-base.poll",
+      "position": [100, 200]
+    },
+    {
+      "id": "node-active-2",
+      "name": "Target API",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [300, 200]
+    },
+    {
+      "id": "node-dead-1",
+      "name": "Forgotten Experiment",
+      "type": "n8n-nodes-base.code",
+      "position": [600, 500]
+    }
+  ],
+  "connections": {
+    "Poll Trigger": {
+      "main": [[{"node": "Target API", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {}
+}

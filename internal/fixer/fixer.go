@@ -1,0 +1,220 @@
+package fixer
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/alexandrmotologa/n8nflow-guard/internal/secrets"
+)
+
+// FixOptions configures the behavior of the auto-remediation engine.
+type FixOptions struct {
+	InPlace      bool
+	Backup       bool
+	StripPinData bool
+	EnvFilePath  string
+	DryRun       bool
+}
+
+// FixResult summarizes changes made during remediation.
+type FixResult struct {
+	FilePath         string
+	Modified         bool
+	SecretsReplaced  int
+	PinDataStripped  bool
+	ExtractedEnvVars map[string]string
+	OriginalJSON     string
+	FixedJSON        string
+}
+
+// FixWorkflowContent processes workflow JSON content and remediates fixable security issues.
+func FixWorkflowContent(content []byte, filePath string, opts FixOptions) (*FixResult, error) {
+	var root map[string]interface{}
+	if err := json.Unmarshal(content, &root); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON for fixing: %w", err)
+	}
+
+	result := &FixResult{
+		FilePath:         filePath,
+		ExtractedEnvVars: make(map[string]string),
+		OriginalJSON:     string(content),
+	}
+
+	// 1. Remediate hardcoded secrets in nodes
+	nodes, ok := root["nodes"].([]interface{})
+	if ok {
+		for _, rawNode := range nodes {
+			nodeMap, isMap := rawNode.(map[string]interface{})
+			if !isMap {
+				continue
+			}
+			nodeName, _ := nodeMap["name"].(string)
+			params, hasParams := nodeMap["parameters"].(map[string]interface{})
+			if !hasParams {
+				continue
+			}
+
+			remediateParams(params, nodeName, "", result)
+		}
+	}
+
+	// 2. Strip pinData if requested or present
+	if opts.StripPinData {
+		if pinData, exists := root["pinData"]; exists {
+			if pinMap, isMap := pinData.(map[string]interface{}); isMap && len(pinMap) > 0 {
+				root["pinData"] = map[string]interface{}{}
+				result.PinDataStripped = true
+				result.Modified = true
+			}
+		}
+	}
+
+	if result.SecretsReplaced > 0 || result.PinDataStripped {
+		result.Modified = true
+	}
+
+	// Re-serialize formatted JSON
+	fixedBytes, err := json.MarshalIndent(root, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to format remediated JSON: %w", err)
+	}
+	// Add trailing newline
+	fixedBytes = append(fixedBytes, '\n')
+	result.FixedJSON = string(fixedBytes)
+
+	// Apply disk modifications if in-place mode is enabled and not a dry run
+	if result.Modified && opts.InPlace && !opts.DryRun {
+		if opts.Backup {
+			backupPath := filePath + ".bak"
+			if err := os.WriteFile(backupPath, content, 0644); err != nil {
+				return nil, fmt.Errorf("failed to create backup file %s: %w", backupPath, err)
+			}
+		}
+
+		if err := os.WriteFile(filePath, fixedBytes, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write remediated file %s: %w", filePath, err)
+		}
+	}
+
+	// Write .env template file if requested
+	if len(result.ExtractedEnvVars) > 0 && opts.EnvFilePath != "" && !opts.DryRun {
+		if err := writeEnvFile(opts.EnvFilePath, result.ExtractedEnvVars); err != nil {
+			return nil, fmt.Errorf("failed to write env file %s: %w", opts.EnvFilePath, err)
+		}
+	}
+
+	return result, nil
+}
+
+func remediateParams(params map[string]interface{}, nodeName, prefix string, res *FixResult) {
+	for k, v := range params {
+		fieldKey := k
+		if prefix != "" {
+			fieldKey = prefix + "." + k
+		}
+
+		switch val := v.(type) {
+		case string:
+			trimmed := strings.TrimSpace(val)
+			if strings.HasPrefix(trimmed, "=") {
+				trimmed = strings.TrimPrefix(trimmed, "=")
+			}
+			if strings.HasPrefix(trimmed, "{{") && strings.HasSuffix(trimmed, "}}") {
+				continue
+			}
+
+			// Check for secret matches
+			matches := secrets.ScanString(val)
+			if len(matches) > 0 {
+				envName := generateEnvVarName(nodeName, fieldKey)
+				res.ExtractedEnvVars[envName] = val
+				params[k] = fmt.Sprintf("={{ $env.%s }}", envName)
+				res.SecretsReplaced++
+				continue
+			}
+
+			// Check high entropy on sensitive key names
+			if secrets.IsSensitiveKeyName(fieldKey) && secrets.IsHighEntropySecret(val) {
+				envName := generateEnvVarName(nodeName, fieldKey)
+				res.ExtractedEnvVars[envName] = val
+				params[k] = fmt.Sprintf("={{ $env.%s }}", envName)
+				res.SecretsReplaced++
+				continue
+			}
+
+		case map[string]interface{}:
+			remediateParams(val, nodeName, fieldKey, res)
+
+		case []interface{}:
+			for i, item := range val {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					remediateParams(itemMap, nodeName, fmt.Sprintf("%s[%d]", fieldKey, i), res)
+				}
+			}
+		}
+	}
+}
+
+func generateEnvVarName(nodeName, keyPath string) string {
+	cleanNode := regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(strings.ToUpper(nodeName), "_")
+	cleanKey := regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(strings.ToUpper(keyPath), "_")
+	name := strings.Trim(fmt.Sprintf("%s_%s", cleanNode, cleanKey), "_")
+	return name
+}
+
+func writeEnvFile(path string, envVars map[string]string) error {
+	var keys []string
+	for k := range envVars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var sb strings.Builder
+	sb.WriteString("# Generated by n8nflow-guard auto-fix\n")
+	for _, k := range keys {
+		val := envVars[k]
+		sb.WriteString(fmt.Sprintf("%s=%s\n", k, val))
+	}
+
+	return os.WriteFile(path, []byte(sb.String()), 0644)
+}
+
+// GenerateUnifiedDiff produces a human-readable visual diff between original and fixed JSON.
+func GenerateUnifiedDiff(original, fixed string) string {
+	origLines := strings.Split(original, "\n")
+	fixedLines := strings.Split(fixed, "\n")
+
+	var diff strings.Builder
+	diff.WriteString("--- original\n+++ fixed\n")
+
+	maxLen := len(origLines)
+	if len(fixedLines) > maxLen {
+		maxLen = len(fixedLines)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		origLine := ""
+		fixedLine := ""
+		if i < len(origLines) {
+			origLine = origLines[i]
+		}
+		if i < len(fixedLines) {
+			fixedLine = fixedLines[i]
+		}
+
+		if origLine != fixedLine {
+			if origLine != "" {
+				diff.WriteString(fmt.Sprintf("-%s\n", origLine))
+			}
+			if fixedLine != "" {
+				diff.WriteString(fmt.Sprintf("+%s\n", fixedLine))
+			}
+		}
+	}
+
+	return diff.String()
+}

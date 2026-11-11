@@ -1,0 +1,97 @@
+{
+  "name": "Customer Support Ticket Sync",
+  "nodes": [
+    {
+      "id": "e4f87a32-1b90-4a81-b541-b66a5e62f501",
+      "name": "Zendesk New Ticket Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "path": "support-tickets",
+        "httpMethod": "POST",
+        "authentication": "headerAuth"
+      }
+    },
+    {
+      "id": "78ab1234-cd56-4ef7-8901-23456789abcd",
+      "name": "Transform Ticket Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300],
+      "notes": "Extracts customer email, priority and formats payload for internal notification",
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { customer: $json.email, title: $json.subject, priority: $json.priority } };"
+      }
+    },
+    {
+      "id": "b9012345-6789-abcd-ef01-234567890123",
+      "name": "Dispatch Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "notes": "Posts high priority tickets to #ops-alerts",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.internal-relay.com/slack/alerts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.OPS_SLACK_RELAY_TOKEN }}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Zendesk New Ticket Webhook": {
+      "main": [
+        [
+          {
+            "node": "Transform Ticket Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Ticket Payload": {
+      "main": [
+        [
+          {
+            "node": "Dispatch Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "ops-incident-escalation-wf",
+    "executionTimeout": 900,
+    "saveExecutionProgress": false,
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all"
+  },
+  "tags": [
+    {
+      "id": "tag-prod",
+      "name": "production"
+    },
+    {
+      "id": "tag-support",
+      "name": "customer-support"
+    }
+  ],
+  "pinData": {}
+}

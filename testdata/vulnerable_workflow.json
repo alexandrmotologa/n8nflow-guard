@@ -1,0 +1,94 @@
+{
+  "name": "Invoice Dispatch Pipeline",
+  "nodes": [
+    {
+      "id": "node-wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": {
+        "path": "invoices",
+        "authentication": "none",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "node-http",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1.0,
+      "position": [450, 300],
+      "retryOnFail": false,
+      "parameters": {
+        "url": "http://billing.external-vendor.com/v1/charge",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-proj-9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      }
+    },
+    {
+      "id": "node-db",
+      "name": "Postgres Query",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [700, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM billing_records WHERE customer_id = '{{ $json.customer_id }}'"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Postgres Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {
+    "HTTP Request": [
+      {
+        "customer_id": "cust_12345",
+        "credit_card": "4111-2222-3333-4444"
+      }
+    ]
+  }
+}

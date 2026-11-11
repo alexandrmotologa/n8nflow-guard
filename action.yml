@@ -1,0 +1,68 @@
+name: 'n8nflow-guard'
+description: 'Fast static analysis and security linter for n8n workflow JSON files'
+author: 'Alexandr Motologa'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path to workflow JSON files or directory to analyze'
+    required: false
+    default: '.'
+  format:
+    description: 'Output format (terminal, sarif, github-actions, json, markdown)'
+    required: false
+    default: 'github-actions'
+  min-severity:
+    description: 'Minimum severity level to report (CRITICAL, HIGH, MEDIUM, LOW, INFO)'
+    required: false
+    default: 'LOW'
+  fail-on:
+    description: 'Minimum severity level that causes the action to fail (CRITICAL, HIGH, MEDIUM, LOW)'
+    required: false
+    default: 'HIGH'
+  sarif-file:
+    description: 'Optional file path to output SARIF report for GitHub Code Scanning'
+    required: false
+    default: ''
+  config:
+    description: 'Path to n8nflow-guard configuration file'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.27'
+        check-latest: true
+
+    - name: Install n8nflow-guard
+      shell: bash
+      run: |
+        go install github.com/alexandrmotologa/n8nflow-guard/cmd/n8nflow-guard@latest
+
+    - name: Run SARIF Export
+      if: ${{ inputs.sarif-file != '' }}
+      shell: bash
+      run: |
+        n8nflow-guard lint \
+          --format sarif \
+          --output "${{ inputs.sarif-file }}" \
+          --min-severity "${{ inputs.min-severity }}" \
+          --fail-on "CRITICAL" \
+          ${{ inputs.config != '' && format('--config "{0}"', inputs.config) || '' }} \
+          "${{ inputs.path }}" || true
+
+    - name: Run n8nflow-guard Lint
+      shell: bash
+      run: |
+        n8nflow-guard lint \
+          --format "${{ inputs.format }}" \
+          --min-severity "${{ inputs.min-severity }}" \
+          --fail-on "${{ inputs.fail-on }}" \
+          ${{ inputs.config != '' && format('--config "{0}"', inputs.config) || '' }} \
+          "${{ inputs.path }}"
