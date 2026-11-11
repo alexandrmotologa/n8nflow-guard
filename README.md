@@ -1,21 +1,73 @@
-# n8nflow-guard
+<p align="center">
+  <img src="docs/images/logo.png?raw=true" alt="n8nflow-guard Logo" width="130" style="border-radius: 24px;" />
+</p>
 
-Static analysis engine, security linter, and graph validator for n8n workflow JSON files.
+<h1 align="center">n8nflow-guard</h1>
 
-n8nflow-guard checks n8n workflow definitions for hardcoded secrets, syntax errors in expressions, graph cycles, orphan nodes, missing error handlers, and reliability defects. It runs as a standalone binary in local environments, as a pre-commit hook, or in CI/CD pipelines with SARIF reports, GitHub Actions annotations, and standalone HTML dashboards.
+<p align="center">
+  <a href="https://github.com/alexandrmotologa/n8nflow-guard/actions/workflows/ci.yml"><img src="https://github.com/alexandrmotologa/n8nflow-guard/actions/workflows/ci.yml/badge.svg" alt="CI Status" /></a>
+  <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat&logo=go" alt="Go Version" /></a>
+  <a href="https://github.com/alexandrmotologa/n8nflow-guard/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" /></a>
+  <a href="https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html"><img src="https://img.shields.io/badge/SARIF-v2.1.0-blueviolet" alt="SARIF v2.1.0" /></a>
+  <a href="https://n8n.io"><img src="https://img.shields.io/badge/n8n-Workflow_Security-FF6D5A?logo=n8n" alt="n8n Compatible" /></a>
+</p>
+
+<p align="center">
+  <strong>Static analysis engine, security linter, and graph validator for n8n workflow JSON files.</strong>
+</p>
+
+<p align="center">
+  <img src="docs/images/n8nflow-guard_demo.gif?raw=true" alt="n8nflow-guard Terminal and UI Execution Demo" width="100%" style="max-width: 900px; height: auto; border-radius: 8px; box-shadow: 0 20px 40px -15px rgba(0,0,0,0.5);" />
+</p>
+
+n8nflow-guard inspects n8n workflow definitions for hardcoded secrets, syntax errors in expressions, graph cycles, orphan nodes, missing error handlers, and reliability defects. It runs as a standalone binary in local environments, as a pre-commit hook, or in CI/CD pipelines with SARIF reports, GitHub Actions annotations, and standalone HTML dashboards.
+
+---
+
+## Visual Overview
+
+### Interactive Security & Reliability Dashboard
+Export standalone, zero-dependency HTML audit dashboards with live search filters, severity breakdowns, and OWASP API Security alignment.
+
+<p align="center">
+  <img src="docs/images/n8nflow-guard_dashboard.png?raw=true" alt="n8nflow-guard Interactive Security Dashboard" width="100%" style="max-width: 900px; height: auto; border-radius: 8px; border: 1px solid #1e293b;" />
+</p>
+
+### Terminal Audit & Security Scoring
+Run millisecond audits directly inside developer terminals with source code coordinates, finding hints, and letter grades.
+
+<p align="center">
+  <img src="docs/images/n8nflow-guard_terminal.png?raw=true" alt="n8nflow-guard CLI Audit Output" width="100%" style="max-width: 900px; height: auto; border-radius: 8px; border: 1px solid #1e293b;" />
+</p>
+
+### Automated Remediation & Secret Extraction
+Sanitize credentials into `{{ $env.VAR_NAME }}` references, clear confidential test payloads, and generate `.env.example` templates automatically.
+
+<p align="center">
+  <img src="docs/images/n8nflow-guard_fix_diff.png?raw=true" alt="n8nflow-guard Automated Fixer Diff" width="100%" style="max-width: 900px; height: auto; border-radius: 8px; border: 1px solid #1e293b;" />
+</p>
+
+### Directed Acyclic Graph (DAG) Topology Verification
+Verify flow connectivity, detect circular execution deadlocks, identify disconnected nodes, and display execution paths.
+
+<p align="center">
+  <img src="docs/images/n8nflow-guard_graph.png?raw=true" alt="n8nflow-guard Topological Graph Inspection" width="100%" style="max-width: 900px; height: auto; border-radius: 8px; border: 1px solid #1e293b;" />
+</p>
+
+---
 
 ## Features
 
 - High throughput: Scans hundreds of workflow definitions in milliseconds with minimal memory footprint.
 - 34 Built-in Rules: Covers security (SEC), reliability (REL), performance (PERF), best practices (BEST), and governance (GOV).
 - Secret Detection: Combines Shannon entropy checks with regex signatures for 50+ cloud providers and credential formats.
-- Graph & Expression Validation: Identifies cycles, orphan nodes, dead branches, and broken expression references.
+- Graph and Expression Validation: Identifies cycles, orphan nodes, dead branches, and broken expression references.
 - Graph Visualization: Exports workflow Directed Acyclic Graphs (DAG) as Mermaid flowcharts, Graphviz DOT files, or ASCII trees.
 - Remote Instance Audit: Direct REST API audit of live production n8n servers without requiring local files.
 - Automated Fixer (`--fix`): Sanitizes hardcoded credentials into `{{ $env.VAR_NAME }}` expressions and generates an `.env.example` template.
 - Inline Suppression: Suppress specific rules per node directly in canvas notes (`// n8nflow-guard-ignore: SEC-002`).
 - Baseline System: Record existing technical debt (`--generate-baseline`) to fail CI builds only on newly introduced issues (`--baseline`).
-- Git Diff & Staged Modes: Lint only files modified in PRs or staged in the git index (`--staged`, `--since origin/main`).
+- Git Diff and Staged Modes: Lint only files modified in PRs or staged in the git index (`--staged`, `--since origin/main`).
 - Multi-format Reporting: Native SARIF v2.1.0 output, GitHub Actions workflow commands, interactive standalone HTML dashboard, JSON, and Markdown summaries.
 
 ## Installation
