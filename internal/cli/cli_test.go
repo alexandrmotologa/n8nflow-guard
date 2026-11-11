@@ -31,8 +31,8 @@ func TestCLIRules(t *testing.T) {
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "SEC-001") || !strings.Contains(out, "Total rules: 33") {
-		t.Errorf("expected 33 rules in output, got:\n%s", out)
+	if !strings.Contains(out, "SEC-001") || !strings.Contains(out, "Total rules: 34") {
+		t.Errorf("expected 34 rules in output, got:\n%s", out)
 	}
 }
 
@@ -77,5 +77,31 @@ func TestCLIInit(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, ".pre-commit-config.yaml")); err != nil {
 		t.Errorf("expected .pre-commit-config.yaml to be created")
+	}
+}
+
+func TestCLIGraph(t *testing.T) {
+	tmpDir := t.TempDir()
+	workflowFile := filepath.Join(tmpDir, "flow.json")
+	content := []byte(`{
+		"name": "Simple Flow",
+		"nodes": [{"name": "Start", "type": "n8n-nodes-base.scheduleTrigger"}]
+	}`)
+	if err := os.WriteFile(workflowFile, content, 0644); err != nil {
+		t.Fatalf("failed writing test file: %v", err)
+	}
+
+	cmd := newGraphCmd()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{workflowFile, "--format", "mermaid"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error executing graph cmd: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "flowchart TD") || !strings.Contains(out, "Start") {
+		t.Errorf("expected mermaid graph output, got:\n%s", out)
 	}
 }

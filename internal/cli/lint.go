@@ -13,13 +13,17 @@ import (
 )
 
 type lintFlags struct {
-	format          string
-	minSeverity     string
-	failOn          string
-	outputPath      string
-	strict          bool
-	ignoreRules     string
-	includeDisabled bool
+	format           string
+	minSeverity      string
+	failOn           string
+	outputPath       string
+	strict           bool
+	ignoreRules      string
+	includeDisabled  bool
+	staged           bool
+	since            string
+	baseline         string
+	generateBaseline string
 }
 
 func newLintCmd() *cobra.Command {
@@ -79,11 +83,15 @@ all active security, reliability, performance, best practice, and governance rul
 			}
 
 			scanOpts := engine.ScanOptions{
-				Paths:       args,
-				MinSeverity: minSev,
-				FailOn:      failOn,
-				Strict:      flags.strict,
-				Config:      appConfig,
+				Paths:                args,
+				MinSeverity:          minSev,
+				FailOn:               failOn,
+				Strict:               flags.strict,
+				Staged:               flags.staged,
+				Since:                flags.since,
+				BaselinePath:         flags.baseline,
+				GenerateBaselinePath: flags.generateBaseline,
+				Config:               appConfig,
 			}
 
 			res, err := engine.RunScan(scanOpts)
@@ -131,6 +139,10 @@ all active security, reliability, performance, best practice, and governance rul
 	cmd.Flags().BoolVar(&flags.strict, "strict", false, "treat all warnings as errors (fail on LOW or higher)")
 	cmd.Flags().StringVar(&flags.ignoreRules, "ignore-rule", "", "comma-separated list of rule IDs to skip (e.g. BEST-002,REL-004)")
 	cmd.Flags().BoolVar(&flags.includeDisabled, "include-disabled", false, "also evaluate disabled nodes")
+	cmd.Flags().BoolVar(&flags.staged, "staged", false, "lint only workflow files staged in git index")
+	cmd.Flags().StringVar(&flags.since, "since", "", "lint workflow files modified relative to a git ref (e.g. origin/main)")
+	cmd.Flags().StringVar(&flags.baseline, "baseline", "", "path to baseline file to suppress previously recorded issues")
+	cmd.Flags().StringVar(&flags.generateBaseline, "generate-baseline", "", "generate a baseline file recording current issues")
 
 	return cmd
 }

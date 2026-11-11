@@ -107,6 +107,7 @@ n8nflow-guard is a standalone static analysis engine and security linter written
 | REL-008 | MEDIUM | unhandled-webhook-error | Webhook node lacks an explicit error response or error handler connection. |
 | REL-009 | LOW | missing-database-timeout | Database query node lacks explicit connection or query timeout settings. |
 | REL-010 | MEDIUM | missing-conditional-fallback | If or Switch node branches terminate without default or fallback handlers. |
+| REL-011 | LOW | unsafe-property-access | Deeply nested property access without optional chaining (?.) risking runtime exceptions. |
 
 ### 3.3 Performance Rules (PERF)
 | Rule ID | Severity | Name | Description |
@@ -148,16 +149,20 @@ n8nflow-guard/
 │   └── n8nflow-guard/
 │       └── main.go                 # Application entrypoint
 ├── internal/
-│   ├── cli/                        # Cobra commands (lint, fix, rules, init, version)
+│   ├── baseline/                   # Fingerprinting and suppression of baseline technical debt
+│   ├── cli/                        # Cobra commands (lint, fix, rules, graph, remote, init, version)
 │   ├── config/                     # Configuration loader (.n8nflow-guard.yaml)
-│   ├── engine/                     # Worker pool and file traversal engine
+│   ├── engine/                     # Traversal engine, git diff/staged resolver
 │   ├── fixer/                      # Automated remediation engine
+│   ├── graphviz/                   # Mermaid, Graphviz DOT, and ASCII visualizers
 │   ├── models/                     # Workflow, Node, DAG, and Issue data structures
 │   ├── parser/                     # JSON parser, line mapper, DAG, and expressions
-│   ├── reporter/                   # Terminal, SARIF, GitHub Actions, JSON, Markdown
-│   ├── rules/                      # Rule registry and rule implementations
+│   ├── remote/                     # Live n8n instance audit REST client
+│   ├── reporter/                   # Terminal, HTML dashboard, SARIF, GitHub Actions, JSON, Markdown
+│   ├── rules/                      # Rule registry, inline notes suppression, and rule implementations
+│   ├── scoring/                    # Security score calculation and OWASP API Top 10 mapping
 │   └── secrets/                    # Shannon entropy and regex patterns
-├── rules_docs/                     # Markdown documentation for all 33 rules
+├── rules_docs/                     # Markdown documentation for all 34 rules
 ├── testdata/                       # Sample valid and invalid workflow fixtures
 ├── action.yml                      # GitHub Action definition
 ├── .pre-commit-hooks.yaml          # Pre-commit hook configuration

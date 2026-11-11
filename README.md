@@ -1,17 +1,22 @@
 # n8nflow-guard
 
-Static analysis engine and security linter for n8n workflow JSON files.
+Static analysis engine, security linter, and graph validator for n8n workflow JSON files.
 
-n8nflow-guard checks n8n workflow definitions for hardcoded secrets, syntax errors in expressions, graph anomalies, missing error handlers, and reliability defects. It runs as a standalone binary in local environments, as a pre-commit hook, or in CI/CD pipelines with SARIF reports and GitHub Actions annotations.
+n8nflow-guard checks n8n workflow definitions for hardcoded secrets, syntax errors in expressions, graph cycles, orphan nodes, missing error handlers, and reliability defects. It runs as a standalone binary in local environments, as a pre-commit hook, or in CI/CD pipelines with SARIF reports, GitHub Actions annotations, and standalone HTML dashboards.
 
 ## Features
 
 - High throughput: Scans hundreds of workflow definitions in milliseconds with minimal memory footprint.
-- 33 Built-in Rules: Covers security (SEC), reliability (REL), performance (PERF), best practices (BEST), and governance (GOV).
+- 34 Built-in Rules: Covers security (SEC), reliability (REL), performance (PERF), best practices (BEST), and governance (GOV).
 - Secret Detection: Combines Shannon entropy checks with regex signatures for 50+ cloud providers and credential formats.
 - Graph & Expression Validation: Identifies cycles, orphan nodes, dead branches, and broken expression references.
+- Graph Visualization: Exports workflow Directed Acyclic Graphs (DAG) as Mermaid flowcharts, Graphviz DOT files, or ASCII trees.
+- Remote Instance Audit: Direct REST API audit of live production n8n servers without requiring local files.
 - Automated Fixer (`--fix`): Sanitizes hardcoded credentials into `{{ $env.VAR_NAME }}` expressions and generates an `.env.example` template.
-- CI/CD Ready: Native SARIF v2.1.0 output for GitHub Code Scanning, GitHub Actions workflow commands, JSON, and Markdown summaries.
+- Inline Suppression: Suppress specific rules per node directly in canvas notes (`// n8nflow-guard-ignore: SEC-002`).
+- Baseline System: Record existing technical debt (`--generate-baseline`) to fail CI builds only on newly introduced issues (`--baseline`).
+- Git Diff & Staged Modes: Lint only files modified in PRs or staged in the git index (`--staged`, `--since origin/main`).
+- Multi-format Reporting: Native SARIF v2.1.0 output, GitHub Actions workflow commands, interactive standalone HTML dashboard, JSON, and Markdown summaries.
 
 ## Installation
 
@@ -34,8 +39,26 @@ n8nflow-guard lint ./workflows/
 # Fail build only on HIGH or CRITICAL severity findings
 n8nflow-guard lint --fail-on HIGH ./workflows/
 
+# Lint only files staged in git index
+n8nflow-guard lint --staged
+
+# Generate interactive standalone HTML security report
+n8nflow-guard lint --format html --output report.html ./workflows/
+
 # Emit SARIF report for GitHub Code Scanning
 n8nflow-guard lint --format sarif --output results.sarif ./workflows/
+
+# Generate baseline file to ignore legacy warnings
+n8nflow-guard lint --generate-baseline .n8nflow-guard-baseline.json ./workflows/
+
+# Fail CI only on new issues not present in baseline
+n8nflow-guard lint --baseline .n8nflow-guard-baseline.json ./workflows/
+
+# Visualize workflow graph in Mermaid flowchart syntax
+n8nflow-guard graph ./workflows/order-sync.json --format mermaid
+
+# Audit active workflows directly from a live n8n server
+n8nflow-guard remote audit --url https://n8n.example.com --api-key $N8N_API_KEY
 
 # Preview automated secret fixes without modifying files
 n8nflow-guard fix --dry-run ./workflows/
@@ -43,7 +66,7 @@ n8nflow-guard fix --dry-run ./workflows/
 # Apply automated fixes in place and export .env.example
 n8nflow-guard fix --in-place --env-file .env.example ./workflows/
 
-# List all 33 available rules
+# List all 34 available rules
 n8nflow-guard rules
 
 # Initialize configuration in the current repository
@@ -59,13 +82,42 @@ n8nflow-guard lint [flags] [paths...]
 ```
 
 Flags:
-- `-f, --format string`: Output format: `terminal` (default), `sarif`, `github-actions`, `json`, `markdown`.
+- `-f, --format string`: Output format: `terminal` (default), `html`, `sarif`, `github-actions`, `json`, `markdown`.
 - `-s, --min-severity string`: Minimum severity level to report: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`.
 - `--fail-on string`: Threshold severity that triggers non-zero exit code: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`.
 - `-o, --output string`: Write report to file path instead of standard output.
 - `--strict`: Treat warnings as errors (fail on `LOW` or higher).
+- `--staged`: Lint only workflow files staged in git index.
+- `--since string`: Lint workflow files modified relative to a git ref (e.g. `origin/main`).
+- `--baseline string`: Path to baseline file to suppress previously recorded issues.
+- `--generate-baseline string`: Generate a baseline file recording current issues.
 - `--ignore-rule string`: Comma-separated list of rule IDs to skip (e.g. `BEST-002,REL-004`).
 - `--include-disabled`: Evaluate disabled nodes on the canvas.
+
+### `graph`
+
+```bash
+n8nflow-guard graph <workflow.json> [flags]
+```
+
+Flags:
+- `-f, --format string`: Diagram format: `mermaid` (default), `dot`, `ascii`.
+- `-o, --output string`: Write generated diagram to file.
+
+### `remote audit`
+
+```bash
+n8nflow-guard remote audit [flags]
+```
+
+Flags:
+- `--url string`: Base URL of n8n instance (e.g. `https://n8n.example.com` or `N8N_BASE_URL`).
+- `--api-key string`: n8n user or instance API key (`N8N_API_KEY`).
+- `--active-only`: Audit only active production workflows (default `true`).
+- `-f, --format string`: Output format (`terminal`, `html`, `sarif`, `github-actions`, `json`, `markdown`).
+- `-s, --min-severity string`: Minimum severity level to report.
+- `--fail-on string`: Threshold severity to exit with code 1.
+- `-o, --output string`: Write report to file.
 
 ### `fix`
 
@@ -91,7 +143,21 @@ Flags:
 - `--category string`: Filter rules by category (`Security`, `Reliability`, `Performance`, `BestPractice`, `Governance`).
 - `--format string`: Display format: `table` (default), `json`, `markdown`.
 
-## Built-in Rule Taxonomy
+## Inline Rule Suppression
+
+Suppress specific rules for individual nodes directly inside node notes on the n8n canvas:
+
+```text
+// n8nflow-guard-ignore: SEC-002 (public contact form webhook)
+```
+
+Multiple rules can be ignored at once:
+
+```text
+// n8nflow-guard-ignore: SEC-002, BEST-002 (internal staging endpoint)
+```
+
+## Built-in Rule Taxonomy (34 Rules)
 
 ### Security (SEC)
 | Rule ID | Severity | Name | Description |
@@ -120,6 +186,7 @@ Flags:
 | `REL-008` | MEDIUM | unhandled-webhook-error | Webhook node expects a response node, but none exists in the workflow. |
 | `REL-009` | LOW | missing-database-timeout | Database query node lacks explicit statement timeout configuration. |
 | `REL-010` | MEDIUM | missing-conditional-fallback | If or Switch node leaves branch outputs completely unconnected. |
+| `REL-011` | LOW | unsafe-property-access | Detects deep property access without optional chaining (?.) risking runtime crashes. |
 
 ### Performance (PERF)
 | Rule ID | Severity | Name | Description |

@@ -67,15 +67,34 @@ func (r *Registry) Evaluate(ctx *RuleContext) []models.Issue {
 
 		// Apply severity overrides and minimum severity filters
 		for i := range ruleIssues {
+			iss := ruleIssues[i]
+
+			// Check for inline node note suppression
+			if iss.NodeName != "" || iss.NodeID != "" {
+				var targetNode *models.Node
+				if iss.NodeName != "" {
+					targetNode = ctx.Workflow.FindNodeByName(iss.NodeName)
+				}
+				if targetNode == nil && iss.NodeID != "" {
+					targetNode = ctx.Workflow.FindNodeByID(iss.NodeID)
+				}
+				if targetNode != nil && targetNode.Notes != "" {
+					ignoredRules := ParseNodeIgnoredRules(targetNode.Notes)
+					if ignoredRules[rule.ID()] {
+						continue
+					}
+				}
+			}
+
 			if ctx.Config != nil {
-				ruleIssues[i].Severity = ctx.Config.GetRuleSeverity(rule.ID(), ruleIssues[i].Severity)
+				iss.Severity = ctx.Config.GetRuleSeverity(rule.ID(), iss.Severity)
 			}
 			if ctx.Config != nil && ctx.Config.MinSeverity != "" {
-				if ruleIssues[i].Severity.Rank() < ctx.Config.MinSeverity.Rank() {
+				if iss.Severity.Rank() < ctx.Config.MinSeverity.Rank() {
 					continue
 				}
 			}
-			issues = append(issues, ruleIssues[i])
+			issues = append(issues, iss)
 		}
 	}
 
@@ -96,7 +115,7 @@ func DefaultRegistry() *Registry {
 	return defaultRegistry
 }
 
-// RegisterAllRules adds all 33 built-in rules to the given registry.
+// RegisterAllRules adds all 34 built-in rules to the given registry.
 func RegisterAllRules(r *Registry) {
 	// Security Suite (SEC-001 to SEC-010)
 	r.Register(&RuleSEC001{})
@@ -110,7 +129,7 @@ func RegisterAllRules(r *Registry) {
 	r.Register(&RuleSEC009{})
 	r.Register(&RuleSEC010{})
 
-	// Reliability Suite (REL-001 to REL-010)
+	// Reliability Suite (REL-001 to REL-011)
 	r.Register(&RuleREL001{})
 	r.Register(&RuleREL002{})
 	r.Register(&RuleREL003{})
@@ -121,6 +140,7 @@ func RegisterAllRules(r *Registry) {
 	r.Register(&RuleREL008{})
 	r.Register(&RuleREL009{})
 	r.Register(&RuleREL010{})
+	r.Register(&RuleREL011{})
 
 	// Performance Suite (PERF-001 to PERF-005)
 	r.Register(&RulePERF001{})

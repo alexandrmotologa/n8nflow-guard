@@ -52,6 +52,8 @@ func init() {
 	RootCmd.AddCommand(newLintCmd())
 	RootCmd.AddCommand(newFixCmd())
 	RootCmd.AddCommand(newRulesCmd())
+	RootCmd.AddCommand(newGraphCmd())
+	RootCmd.AddCommand(newRemoteCmd())
 	RootCmd.AddCommand(newInitCmd())
 	RootCmd.AddCommand(newVersionCmd())
 }

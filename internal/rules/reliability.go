@@ -2,6 +2,7 @@ package rules
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/alexandrmotologa/n8nflow-guard/internal/models"
@@ -483,6 +484,53 @@ func (r *RuleREL010) Evaluate(ctx *RuleContext) []models.Issue {
 				Remediation: r.Remediation(),
 			})
 		}
+	}
+
+	return issues
+}
+
+// -------------------------------------------------------------
+// REL-011: unsafe-property-access
+// -------------------------------------------------------------
+type RuleREL011 struct{}
+
+func (r *RuleREL011) ID() string             { return "REL-011" }
+func (r *RuleREL011) Name() string           { return "unsafe-property-access" }
+func (r *RuleREL011) Category() models.Category { return models.CategoryReliability }
+func (r *RuleREL011) Severity() models.Severity { return models.SeverityLow }
+func (r *RuleREL011) Description() string {
+	return "Detects deeply nested object property access without optional chaining (?.) risking runtime exceptions."
+}
+func (r *RuleREL011) Remediation() string {
+	return "Use optional chaining (e.g. $json.customer?.address?.city) to guard against undefined sub-objects."
+}
+func (r *RuleREL011) Evaluate(ctx *RuleContext) []models.Issue {
+	var issues []models.Issue
+	nestedRegex := regexp.MustCompile(`\$json\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)`)
+
+	for _, node := range ctx.Workflow.Nodes {
+		walkParameters(node.Parameters, "", func(keyPath string, val string) {
+			if !strings.Contains(val, "{{") {
+				return
+			}
+			matches := nestedRegex.FindAllString(val, -1)
+			for _, m := range matches {
+				line := ctx.LineMapper.FindFieldLine(node.Name, keyPath)
+				issues = append(issues, models.Issue{
+					RuleID:      r.ID(),
+					RuleName:    r.Name(),
+					Category:    r.Category(),
+					Severity:    r.Severity(),
+					Message:     fmt.Sprintf("Node '%s' uses unsafe deep property access '%s' without optional chaining", node.Name, m),
+					FilePath:    ctx.Workflow.FilePath,
+					Line:        line,
+					NodeID:      node.ID,
+					NodeName:    node.Name,
+					Field:       keyPath,
+					Remediation: r.Remediation(),
+				})
+			}
+		})
 	}
 
 	return issues

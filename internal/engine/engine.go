@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alexandrmotologa/n8nflow-guard/internal/baseline"
 	"github.com/alexandrmotologa/n8nflow-guard/internal/config"
 	"github.com/alexandrmotologa/n8nflow-guard/internal/models"
 	"github.com/alexandrmotologa/n8nflow-guard/internal/parser"
@@ -17,12 +18,16 @@ import (
 
 // ScanOptions configures the static analysis execution.
 type ScanOptions struct {
-	Paths       []string
-	MinSeverity models.Severity
-	FailOn      models.Severity
-	Strict      bool
-	Config      *config.Config
-	Registry    *rules.Registry
+	Paths                []string
+	MinSeverity          models.Severity
+	FailOn               models.Severity
+	Strict               bool
+	Staged               bool
+	Since                string
+	BaselinePath         string
+	GenerateBaselinePath string
+	Config               *config.Config
+	Registry             *rules.Registry
 }
 
 // ScanResult contains all findings, summaries, and exit criteria.
@@ -49,9 +54,23 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 		opts.Config.FailOn = opts.FailOn
 	}
 
-	files, err := resolveFilePaths(opts.Paths, opts.Config)
-	if err != nil {
-		return nil, fmt.Errorf("failed resolving input paths: %w", err)
+	var files []string
+	var err error
+	if opts.Staged {
+		files, err = GetStagedWorkflowFiles()
+		if err != nil {
+			return nil, err
+		}
+	} else if opts.Since != "" {
+		files, err = GetDiffWorkflowFiles(opts.Since)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		files, err = resolveFilePaths(opts.Paths, opts.Config)
+		if err != nil {
+			return nil, fmt.Errorf("failed resolving input paths: %w", err)
+		}
 	}
 
 	if len(files) == 0 {
@@ -102,6 +121,22 @@ func RunScan(opts ScanOptions) (*ScanResult, error) {
 			issues := opts.Registry.Evaluate(ctx)
 			allIssues = append(allIssues, issues...)
 		}
+	}
+
+	// Generate baseline file if requested
+	if opts.GenerateBaselinePath != "" {
+		if err := baseline.GenerateBaseline(allIssues, opts.GenerateBaselinePath); err != nil {
+			return nil, fmt.Errorf("failed generating baseline file: %w", err)
+		}
+	}
+
+	// Filter against baseline if supplied
+	if opts.BaselinePath != "" {
+		_, baselineIndex, err := baseline.LoadBaseline(opts.BaselinePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed loading baseline: %w", err)
+		}
+		allIssues = baseline.FilterNewIssues(allIssues, baselineIndex)
 	}
 
 	// Sort issues by file path, line, and severity rank descending

@@ -118,3 +118,21 @@ func TestMarkdownReporter(t *testing.T) {
 		t.Errorf("expected markdown header, got:\n%s", out)
 	}
 }
+
+func TestHTMLReporter(t *testing.T) {
+	issues, summary := sampleData()
+	rep := &HTMLReporter{}
+
+	var buf bytes.Buffer
+	if err := rep.Report(&buf, issues, summary); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "<title>n8nflow-guard Security Audit Report</title>") {
+		t.Errorf("expected HTML title in report, got:\n%s", out)
+	}
+	if !strings.Contains(out, "SEC-001") {
+		t.Errorf("expected SEC-001 in HTML report, got:\n%s", out)
+	}
+}

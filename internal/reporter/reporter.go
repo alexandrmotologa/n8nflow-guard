@@ -68,7 +68,9 @@ func NewReporter(format string, noColor bool) (Reporter, error) {
 		return &JSONReporter{}, nil
 	case "markdown", "md":
 		return &MarkdownReporter{}, nil
+	case "html":
+		return &HTMLReporter{}, nil
 	default:
-		return nil, fmt.Errorf("unsupported output format: %s (supported: terminal, sarif, github-actions, json, markdown)", format)
+		return nil, fmt.Errorf("unsupported output format: %s (supported: terminal, sarif, github-actions, json, markdown, html)", format)
 	}
 }
